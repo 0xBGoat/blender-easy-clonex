@@ -2,9 +2,8 @@ import bpy, os
 import bpy.utils.previews
 from pathlib import Path
 from bpy_extras.io_utils import ImportHelper
-from bpy.types import (Scene, Panel, PropertyGroup, Operator)
-from bpy.props import (StringProperty, BoolProperty, CollectionProperty)
-from bpy.utils import register_class, unregister_class
+from bpy.types import Scene, Panel, PropertyGroup, Operator
+from bpy.props import StringProperty
 from lib.easybpy import *
 
 def set_material_preview_shading():    
@@ -120,7 +119,9 @@ def update_trait_selected(self, context):
                                 select_only(obj)
                                 bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
                                 
-                                armature_mod = get_modifier(obj, 'Armature') if get_modifier(obj, 'Armature') else get_modifier(obj, 'Genesis8_1' + Scene.clonex_gender.capitalize())
+                                armature_mod = (get_modifier(obj, 'Armature') 
+                                    if get_modifier(obj, 'Armature') 
+                                    else get_modifier(obj, 'Genesis8_1' + Scene.clonex_gender.capitalize()))
                                 
                                 if armature_mod is not None:
                                     armature_mod.object = get_object('Genesis8_1' + Scene.clonex_gender.capitalize())
@@ -275,7 +276,14 @@ class EasyCloneXPanel(Panel):
             col_traits.alignment = 'Expand'.upper() # Why is this call to upper necessary?
             
             for i in range(len(get_scene().clonex_trait_collection)):
-                col_traits.prop(get_scene().clonex_trait_collection[i], 'trait_selected', text=get_scene().clonex_trait_collection[i].trait_name, icon_value=0, emboss=True, expand=True)
+                col_traits.prop(
+                    get_scene().clonex_trait_collection[i], 
+                    'trait_selected', 
+                    text=get_scene().clonex_trait_collection[i].trait_name, 
+                    icon_value=0, 
+                    emboss=True, 
+                    expand=True
+                )
         
 class CloneXTraitPropertyGroup(PropertyGroup):
     trait_dir: bpy.props.StringProperty(name='Trait Directory', description='', default='', subtype='NONE', maxlen=0)
