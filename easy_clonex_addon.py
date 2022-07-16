@@ -16,23 +16,25 @@ def set_material_preview_shading():
 def apply_dna_textures_to_object(filepath, geo_object):
     base_mat = get_material_from_object(geo_object)
     
-    dna_material_name = 'Dna_Head' if base_mat.name == 'Head' else 'Dna_Suit'   
-    dna_mat = get_material(dna_material_name)
+    dna_mat_name = 'Dna_Head' if base_mat.name == 'Head' else 'Dna_Suit'   
+    dna_mat = get_material(dna_mat_name)
     
     if dna_mat is None:
-        dna_mat = create_material(dna_material_name)
+        dna_mat = create_material(dna_mat_name)
         dna_mat.use_nodes = True
         dna_nodes = get_nodes(dna_mat)
         dna_bsdf = get_node(dna_nodes, 'Principled BSDF')
         
         # Load all of the image files
-        for file in os.listdir(filepath):
-            bpy.data.images.load(os.path.join(filepath, file), check_existing=True)
+        image_exts = ['.png', '.jpg', '.jpeg']
+
+        for path in [p for p in Path(filepath).rglob('*') if p.suffix in image_exts]:
+            bpy.data.images.load(str(path.resolve()), check_existing=True)
             
-            filename = Path(file).stem
+            filename = path.stem
             
             tex_node = create_node(dna_nodes, "ShaderNodeTexImage")
-            tex_img = get_image(file)
+            tex_img = get_image(path.name)
             tex_node.image = tex_img
             
             tokens = filename.split('_')
@@ -146,9 +148,9 @@ def update_trait_selected(self, context):
             geo_object = get_object('CloneX_HeadGeo')
             filepath = os.path.join(abs_trait_dir, '_texture')
         
-        if geo_object is not None:
-            geo_mat = get_material_from_object(geo_object)
+        geo_mat = get_material_from_object(geo_object)
 
+        if geo_object is not None:
             if self.trait_selected and geo_mat in base_mats:
                 apply_dna_textures_to_object(filepath, geo_object)
             elif not self.trait_selected and geo_mat not in base_mats:       
