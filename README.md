@@ -4,7 +4,7 @@ Easy CloneX is a Blender Add-on to simplify working with the 3D assets provided 
 <img src="./docs/images/easy_clonex_full_view.png" alt="Easy Clonex Screenshot" style="width:800px;"/>  
 
 ## Download and Installation
-1. Head over to the Releases page to download a `.zip` file of the add-on
+1. Head over to the [Releases](https://github.com/0xBGoat/blender-easy-clonex/releases) page to download a `.zip` file of the add-on
 1. In Blender, go to `Edit > Preferences` and select the `Add-ons` option on the left
 1. At the top of the window, click the `Install` button and select the `.zip` file you downloaded
 1. Check the box to enable the add-on 
