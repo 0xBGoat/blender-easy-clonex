@@ -1,12 +1,3 @@
-bl_info = {
-    "name": "Easy CloneX",
-    "author": "OxBGoat",
-    "version": (1, 0, 0),
-    "blender": (3, 2, 0),
-    "description": "An Add-on that makes it easy to assemble a Clone from CloneX 3D files",
-    "category": "CloneX"
-}
-
 import bpy, os
 import bpy.utils.previews
 from pathlib import Path
@@ -14,7 +5,7 @@ from bpy_extras.io_utils import ImportHelper
 from bpy.types import (Scene, Panel, PropertyGroup, Operator)
 from bpy.props import (StringProperty, BoolProperty, CollectionProperty)
 from bpy.utils import register_class, unregister_class
-from easybpy import *
+from lib.easybpy import *
 
 def set_material_preview_shading():    
     for area in bpy.context.screen.areas:
@@ -290,40 +281,3 @@ class CloneXTraitPropertyGroup(PropertyGroup):
     trait_dir: bpy.props.StringProperty(name='Trait Directory', description='', default='', subtype='NONE', maxlen=0)
     trait_name: bpy.props.StringProperty(name='Trait Name', description='', default='', subtype='NONE', maxlen=0)
     trait_selected: bpy.props.BoolProperty(name='Trait Selected', description='', default=False, update=update_trait_selected) 
-
-def register():
-    global _icons
-    _icons = bpy.utils.previews.new()
-    
-    register_class(BaseCloneSelectOperator)
-    register_class(CloneXTraitPropertyGroup)
-
-    Scene.clonex_trait_collection = CollectionProperty(name='Trait Collection', description='', type=CloneXTraitPropertyGroup)
-    Scene.clonex_home_dir = StringProperty(name='CloneX Home Dir', description='', default='', subtype='NONE', maxlen=0)
-    Scene.clonex_gender = StringProperty(name='CloneX Gender', description='', default='male', subtype='NONE', maxlen=0)
-    Scene.clonex_loaded = BoolProperty(name='CloneX Loaded', description='', default=False)
-    
-    try: 
-        register_class(EasyCloneXPanel)
-    except:
-        pass    
-
-def unregister():
-    global _icons
-    bpy.utils.previews.remove(_icons)
-    
-    del Scene.clonex_trait_collection
-    del Scene.clonex_home_dir
-    del Scene.clonex_gender
-    del Scene.clonex_loaded
-    
-    unregister_class(CloneXTraitPropertyGroup)
-    unregister_class(BaseCloneSelectOperator)
-    
-    try: 
-        unregister_class(EasyCloneXPanel)
-    except: 
-        pass
-    
-if __name__ == "__main__":
-    register()

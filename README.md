@@ -28,3 +28,6 @@ Now open Blender and click on the arrow to pop out a the side panel with some ve
 1. Below the button, you will now see a `Select Traits` section corresponding to the rest of the 3D file directories you extracted
 1. Use the checkboxes to load and apply the traits/wearables/DNA textures
 
+**DISCLAIMER**  
+This is the first Blender add-on I've written and my experience with Blender (or any 3D modeling software for that matter) began when the 3D files for clones were released. It is quite possible I'm doing things inefficiently or flat-out wrong so please feel free to give me feedback/suggestions on how to improve the add-on. I can be reached on the RTFKT discord (@TheRealBGoat#1111), on twitter [@0xBGoat](https://twitter.com/0xBGoat) or by opening an issue in this repo.
+
