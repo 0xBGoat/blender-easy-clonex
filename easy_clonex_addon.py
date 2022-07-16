@@ -4,7 +4,7 @@ from pathlib import Path
 from bpy_extras.io_utils import ImportHelper
 from bpy.types import Scene, Panel, PropertyGroup, Operator
 from bpy.props import StringProperty
-from lib.easybpy import *
+from . easybpy import *
 
 def set_material_preview_shading():    
     for area in bpy.context.screen.areas:
@@ -16,8 +16,7 @@ def set_material_preview_shading():
 def apply_dna_textures_to_object(filepath, geo_object):
     base_mat = get_material_from_object(geo_object)
     
-    dna_material_name = 'Dna_Head' if base_mat.name == 'Head' else 'Dna_Suit'
-    print(dna_material_name)   
+    dna_material_name = 'Dna_Head' if base_mat.name == 'Head' else 'Dna_Suit'   
     dna_mat = get_material(dna_material_name)
     
     if dna_mat is None:
@@ -68,39 +67,33 @@ def apply_dna_textures_to_object(filepath, geo_object):
         # Add the new material to the geo_object       
         add_material_to_object(geo_object, dna_mat)
     
-    # Swap the material_slots for the existing and dna materials
+    # Swap the material_slots for the base and dna materials
     geo_object.material_slots[0].material = dna_mat
     geo_object.material_slots[len(geo_object.material_slots)-1].material = base_mat
     
 def remove_dna_textures_from_object(geo_object):
     base_mat = geo_object.material_slots[len(geo_object.material_slots)-1]
-    base_material_name = 'Head' if base_mat.name == get_material('Head').name else 'Suit'
+    base_mat_name = 'Head' if base_mat.name == 'Head' else 'Suit'
     
-    if geo_object.material_slots[0].material.name != get_material(base_material_name).name:
-        base_mat = get_material(base_material_name)
+    if geo_object.material_slots[0].material.name != get_material(base_mat_name).name:
+        base_mat = get_material(base_mat_name)
         dna_mat = geo_object.material_slots[0].material
         
         geo_object.material_slots[0].material = base_mat
         geo_object.material_slots[len(geo_object.material_slots)-1].material = dna_mat
 
 def update_trait_selected(self, context):
-    trait_selected_updated_prop = self.trait_selected
-    dir = get_scene().clonex_home_dir
     abs_trait_dir = os.path.join(Scene.clonex_home_dir, self.trait_dir)
     
     # Store the base_mats for comparison checks
     base_mats = [get_material('Head'), get_material('Suit')]
-    head_geo = get_object('CloneX_HeadGeo')
-    suit_geo = get_object('CloneX_' + Scene.clonex_gender.capitalize() + '_SuitGeo')
     
     if Path(os.path.join(abs_trait_dir, '_' + Scene.clonex_gender)).is_dir():
         filepath = os.path.join(abs_trait_dir, '_' + Scene.clonex_gender + '\_blender')
     
         for file in os.listdir(filepath):
             if file.endswith('.blend'):
-                # Append the objects from blend file
-                print(file)
-                
+                # Append the objects from blend file              
                 if self.trait_selected:
                     if not collection_exists(self.trait_name):
                         # This is the first time the trait is being selected so load the files
@@ -152,10 +145,10 @@ def update_trait_selected(self, context):
         elif self.trait_dir.startswith('DNA'):
             geo_object = get_object('CloneX_HeadGeo')
             filepath = os.path.join(abs_trait_dir, '_texture')
-            
-        geo_mat = get_material_from_object(geo_object)
         
         if geo_object is not None:
+            geo_mat = get_material_from_object(geo_object)
+
             if self.trait_selected and geo_mat in base_mats:
                 apply_dna_textures_to_object(filepath, geo_object)
             elif not self.trait_selected and geo_mat not in base_mats:       
@@ -165,6 +158,7 @@ def update_trait_selected(self, context):
     
 class BaseCloneSelectOperator(Operator, ImportHelper):
     """Use the file browser to select your base clone .blend file"""
+    
     bl_idname = "clone_select.button"
     bl_label = "Open Clone"
     
