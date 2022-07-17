@@ -22,8 +22,10 @@ def apply_dna_textures_to_object(filepath, geo_object):
     if dna_mat is None:
         dna_mat = create_material(dna_mat_name)
         dna_mat.use_nodes = True
+
         dna_nodes = get_nodes(dna_mat)
         dna_bsdf = get_node(dna_nodes, 'Principled BSDF')
+        dna_bsdf.subsurface_method = 'BURLEY'
         
         # Load all of the image files
         image_exts = ['.png', '.jpg', '.jpeg']
@@ -34,8 +36,7 @@ def apply_dna_textures_to_object(filepath, geo_object):
             filename = path.stem
             
             tex_node = create_node(dna_nodes, "ShaderNodeTexImage")
-            tex_img = get_image(path.name)
-            tex_node.image = tex_img
+            tex_node.image = get_image(path.name)
             
             tokens = filename.split('_')
             suffix = tokens[len(tokens)-1]
@@ -84,6 +85,33 @@ def remove_dna_textures_from_object(geo_object):
         geo_object.material_slots[0].material = base_mat
         geo_object.material_slots[len(geo_object.material_slots)-1].material = dna_mat
 
+def load_clonex_trait_files_into_collection(trait_collection, filepath):
+    with bpy.data.libraries.load(filepath) as (data_from, data_to):
+        data_to.objects = data_from.objects
+                            
+    link_objects_to_collection(data_to.objects, trait_collection)
+    
+    # Get all mesh objects from the collection and update their Armature modifiers
+    objects = get_objects_from_collection(trait_collection)
+    
+    for obj in objects:
+        if obj.type == 'MESH':
+            # Clear the parent, then update the armature modifier
+            select_only(obj)
+            bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
+            
+            armature_mod = (get_modifier(obj, 'Armature') 
+                if get_modifier(obj, 'Armature') 
+                else get_modifier(obj, 'Genesis8_1' + Scene.clonex_gender.capitalize()))
+            
+            if armature_mod is not None:
+                armature_mod.object = get_object('Genesis8_1' + Scene.clonex_gender.capitalize())
+        
+    # Clean up unused objects          
+    for obj in objects:
+        if obj.type != 'MESH':
+            delete_object(obj)   
+
 def update_trait_selected(self, context):
     abs_trait_dir = os.path.join(Scene.clonex_home_dir, self.trait_dir)
     
@@ -99,32 +127,8 @@ def update_trait_selected(self, context):
                 if self.trait_selected:
                     if not collection_exists(self.trait_name):
                         # This is the first time the trait is being selected so load the files
-                        with bpy.data.libraries.load(os.path.join(abs_trait_dir, '_' + Scene.clonex_gender + '\_blender', file)) as (data_from, data_to):
-                            data_to.objects = data_from.objects
-                            
                         trait_collection = create_collection(self.trait_name)
-                        link_objects_to_collection(data_to.objects, trait_collection)
-                        
-                        # Get all mesh objects from the collection and update their Armature modifiers
-                        objects = get_objects_from_collection(trait_collection)
-                        
-                        for obj in objects:
-                            if obj.type == 'MESH':
-                                # Clear the parent, then update the armature modifier
-                                select_only(obj)
-                                bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
-                                
-                                armature_mod = (get_modifier(obj, 'Armature') 
-                                    if get_modifier(obj, 'Armature') 
-                                    else get_modifier(obj, 'Genesis8_1' + Scene.clonex_gender.capitalize()))
-                                
-                                if armature_mod is not None:
-                                    armature_mod.object = get_object('Genesis8_1' + Scene.clonex_gender.capitalize())
-                          
-                        # Clean up unused objects          
-                        for obj in objects:
-                            if obj.type != 'MESH':
-                                delete_object(obj)
+                        load_clonex_trait_files_into_collection(trait_collection, os.path.join(filepath, file))
                                                                  
                     else:
                         # If the collection already exists just unhide it
@@ -157,6 +161,23 @@ def update_trait_selected(self, context):
                 remove_dna_textures_from_object(geo_object)
             else:
                 print('Material state is out of sync, no action taken')
+
+def format_trait_display_name(folder_name):
+    folder_name_tokenized = folder_name.split('-')
+    trait_name = ''
+    
+    for idx, token in enumerate(folder_name_tokenized):
+        if idx == 0:
+            trait_name += token + ' -'
+            continue
+        
+        if (token != 'Combined'):
+            trait_description_tokens = token.split('_')
+            
+            for desc_token in trait_description_tokens:
+                trait_name += ' ' + desc_token.capitalize()
+
+    return trait_name 
     
 class BaseCloneSelectOperator(Operator, ImportHelper):
     """Use the file browser to select your base clone .blend file"""
@@ -196,30 +217,15 @@ class BaseCloneSelectOperator(Operator, ImportHelper):
         
         for i in range(len([f for f in os.listdir(clonex_dir) if os.path.isdir(os.path.join(clonex_dir, f))])):
             folder_name = [f for f in os.listdir(clonex_dir) if os.path.isdir(os.path.join(clonex_dir, f))][i]
-            trait_name = None
             
             # Ignore the current file
             if 'character_neutral' in folder_name:
                 continue
-            
-            folder_name_tokenized = folder_name.split('-')
-            trait_name = ''
-            
-            for idx, token in enumerate(folder_name_tokenized):
-                if idx == 0:
-                    trait_name += token + ' -'
-                    continue
-                
-                if (token != 'Combined'):
-                    trait_description_tokens = token.split('_')
-                    
-                    for desc_token in trait_description_tokens:
-                        trait_name += ' ' + desc_token.capitalize()
-            
+                       
             item = get_scene().clonex_trait_collection.add()
            
             item.trait_dir = folder_name
-            item.trait_name = trait_name
+            item.trait_name = format_trait_display_name(folder_name)
             item.trait_selected = False
         
         Scene.clonex_loaded = True
