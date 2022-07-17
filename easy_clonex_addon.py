@@ -20,6 +20,7 @@ def set_material_preview_shading():
             space = area.spaces.active
             if space.type == 'VIEW_3D':
                 space.shading.type = 'MATERIAL'
+                bpy.ops.view3d.view_all()
 
 def apply_dna_textures_to_object(filepath, geo_object):
     base_mat = get_material_from_object(geo_object)
@@ -256,7 +257,7 @@ class BaseCloneSelectOperator(Operator, ImportHelper):
             folder_name = [f for f in os.listdir(clonex_dir) if os.path.isdir(os.path.join(clonex_dir, f))][i]
             
             # Ignore the current file
-            if 'character_neutral' in folder_name:
+            if 'character_neutral' in folder_name or not folder_name.endswith('Combined'):
                 continue
                        
             item = get_scene().clonex_trait_collection.add()
