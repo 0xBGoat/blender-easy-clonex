@@ -14,7 +14,8 @@ Easy CloneX is a Blender Add-on to simplify working with the 3D assets provided 
 
 Easy CloneX adds a new panel to the 3D View in Blender, which you can access by clicking on the small left arrow in the upper-right corner of that view. This panel allows you to load your base clone file and then check the boxes next to the traits/wearables/DNA textures you'd like to apply. If you change your mind, you can uncheck the boxes and those objects will be hidden from the viewport and rendering.
 
-**Armatures/Rigging**  
+**Armatures/Rigging** 
+
 The add-on automatically updates the armature modifier for all objects to point at the primary armature. All of the duplicated armatures and riggings are deleted to keep things clean.
   
 <img src="./docs/images/easy_clonex_panel.png">
