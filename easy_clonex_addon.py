@@ -6,6 +6,14 @@ from bpy.types import Scene, Panel, PropertyGroup, Operator
 from bpy.props import StringProperty
 from . easybpy import *
 
+BSDF_NODE_INDEX_DICT = {
+    'BSDF_INPUT_BASE_COLOR_INDEX': 0,
+    'BSDF_INPUT_METALLIC_INDEX': 6,
+    'BSDF_INPUT_ROUGHNESS_INDEX': 9,
+    'BSDF_INPUT_EMISSION_INDEX': 19,
+    'BSDF_INPUT_NORMAL_INDEX': 22
+}
+
 def set_material_preview_shading():    
     for area in bpy.context.screen.areas:
         if area.type == 'VIEW_3D':
@@ -31,41 +39,70 @@ def apply_dna_textures_to_object(filepath, geo_object):
         image_exts = ['.png', '.jpg', '.jpeg']
 
         for path in [p for p in Path(filepath).rglob('*') if p.suffix in image_exts]:
-            bpy.data.images.load(str(path.resolve()), check_existing=True)
-            
-            filename = path.stem
-            
-            tex_node = create_node(dna_nodes, "ShaderNodeTexImage")
-            tex_node.image = get_image(path.name)
-            
-            tokens = filename.split('_')
-            suffix = tokens[len(tokens)-1]
-            
-            match suffix:
-                case 'd':
-                    # This is a base color image
-                    create_node_link(tex_node.outputs[0], dna_bsdf.inputs[0])
-                case 'm':
-                    # This is a metallic image
-                    create_node_link(tex_node.outputs[0], dna_bsdf.inputs[6])
-                    tex_node.image.colorspace_settings.name = 'Non-Color'
-                case 'r':
-                    # This is a roughness image
-                    create_node_link(tex_node.outputs[0], dna_bsdf.inputs[9])
-                    tex_node.image.colorspace_settings.name = 'Non-Color'
-                case 'n':
-                    # This is a normal mapping image
-                    # Need to create a normal map node between the texture image and BSDF node
-                    normal_node = create_node(dna_nodes, "ShaderNodeNormalMap")
-                    create_node_link(normal_node.outputs[0], dna_bsdf.inputs[22])
-                    create_node_link(tex_node.outputs[0], normal_node.inputs[1])
-                    tex_node.image.colorspace_settings.name = 'Non-Color'
-                case 'e':
-                    # This is an emission image 
-                    create_node_link(tex_node.outputs[0], dna_bsdf.inputs[19])
-                    tex_node.image.colorspace_settings.name = 'Non-Color'
-                case _:
-                    print('Unhandled image type')       
+            if get_image(path.name) is None:
+                bpy.data.images.load(str(path.resolve()), check_existing=True)
+                
+                filename = path.stem
+                
+                tex_node = create_node(dna_nodes, "ShaderNodeTexImage")
+                tex_node.image = get_image(path.name)
+                
+                tokens = filename.split('_')
+                suffix = tokens[len(tokens)-1]
+                
+                match suffix:
+                    case 'd':
+                        # This is a base color image
+                        output_socket = tex_node.outputs[0]
+                        input_socket = dna_bsdf.inputs[BSDF_NODE_INDEX_DICT['BSDF_INPUT_BASE_COLOR_INDEX']]
+
+                        if not input_socket.is_linked:
+                            create_node_link(output_socket, input_socket)
+                    case 'm':
+                        # This is a metallic image
+                        output_socket = tex_node.outputs[0]
+                        input_socket = dna_bsdf.inputs[BSDF_NODE_INDEX_DICT['BSDF_INPUT_METALLIC_INDEX']]
+
+                        if not input_socket.is_linked:
+                            create_node_link(output_socket, input_socket)
+
+                        tex_node.image.colorspace_settings.name = 'Non-Color'
+                    case 'r':
+                        # This is a roughness image
+                        output_socket = tex_node.outputs[0]
+                        input_socket = dna_bsdf.inputs[BSDF_NODE_INDEX_DICT['BSDF_INPUT_ROUGHNESS_INDEX']]
+
+                        if not input_socket.is_linked:
+                            create_node_link(output_socket, input_socket)
+                        
+                        tex_node.image.colorspace_settings.name = 'Non-Color'
+                    case 'e':
+                        # This is an emission image 
+                        output_socket = tex_node.outputs[0]
+                        input_socket = dna_bsdf.inputs[BSDF_NODE_INDEX_DICT['BSDF_INPUT_EMISSION_INDEX']]
+
+                        if not input_socket.is_linked:
+                            create_node_link(output_socket, input_socket)
+                        
+                        tex_node.image.colorspace_settings.name = 'Non-Color'
+                    case 'n':
+                        # This is a normal mapping image
+                        # Need to create a normal map node between the texture image and BSDF node
+                        normal_node = create_node(dna_nodes, "ShaderNodeNormalMap")
+                        
+                        normal_output_socket = normal_node.outputs[0]
+                        input_socket = dna_bsdf.inputs[BSDF_NODE_INDEX_DICT['BSDF_INPUT_NORMAL_INDEX']]
+
+                        if not input_socket.is_linked:
+                            create_node_link(normal_output_socket, input_socket)
+                        
+                        create_node_link(tex_node.outputs[0], normal_node.inputs[1])
+                        
+                        tex_node.image.colorspace_settings.name = 'Non-Color'
+                    case _:
+                        # Not a valid texture image, remove both the image and the node
+                        delete_image(tex_node.image)
+                        delete_node(dna_nodes, tex_node)   
             
         # Add the new material to the geo_object       
         add_material_to_object(geo_object, dna_mat)
