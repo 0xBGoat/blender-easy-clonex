@@ -196,19 +196,20 @@ def update_trait_selected(self, context):
                 break
     else:
         # These traits are textures that need to be applied
-        filepath = ''  
+        filepath = ''
+        geo_objects = []  
         geo_object = None
         
         # These head and suit objects can have varying names, so do some fuzzy matching
         if self.trait_dir.startswith('Characters'):
-            objects = get_objects_including('SuitGeo')
+            geo_objects = get_objects_including('SuitGeo')
             filepath = os.path.join(abs_trait_dir, '_textures', 'suit_' + Scene.clonex_gender)
         elif self.trait_dir.startswith('DNA'):
-            objects = get_objects_including('HeadGeo')
+            geo_objects = get_objects_including('HeadGeo')
             filepath = os.path.join(abs_trait_dir, '_texture')
 
-        if len(objects) > 0:
-            geo_object = objects[0]
+        if len(geo_objects) > 0:
+            geo_object = geo_objects[0]
         
         geo_mat = get_material_from_object(geo_object)
 
@@ -277,7 +278,7 @@ class BaseCloneSelectOperator(Operator, ImportHelper):
             folder_name = [f for f in os.listdir(clonex_dir) if os.path.isdir(os.path.join(clonex_dir, f))][i]
             
             # Ignore the current file
-            if 'character_neutral' in folder_name or not folder_name.endswith('Combined'):
+            if 'Characters-character' in folder_name or not folder_name.endswith('Combined'):
                 continue
                        
             item = get_scene().clonex_trait_collection.add()
