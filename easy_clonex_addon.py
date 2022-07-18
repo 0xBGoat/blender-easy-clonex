@@ -4,6 +4,8 @@ from pathlib import Path
 from bpy_extras.io_utils import ImportHelper
 from bpy.types import Scene, Panel, PropertyGroup, Operator
 from bpy.props import StringProperty
+from math import radians
+from mathutils import Matrix
 from . easybpy import *
 
 BSDF_NODE_INDEX_DICT = {
@@ -14,13 +16,27 @@ BSDF_NODE_INDEX_DICT = {
     'BSDF_INPUT_NORMAL_INDEX': 22
 }
 
-def set_material_preview_shading():    
-    for area in bpy.context.screen.areas:
+def setup_viewport(context):
+    # Move the camera into a better starting position
+    mat_loc = Matrix.Translation((0, -5, 2))
+    mat_sca = Matrix.Scale(1, 4, (1, 1, 1))
+    mat_rot = Matrix.Rotation(radians(77), 4, 'X')
+    mat_comb = mat_loc @ mat_rot @ mat_sca
+
+    cam = bpy.data.objects['Camera']
+    cam.matrix_world = mat_comb
+
+    for area in context.screen.areas:
         if area.type == 'VIEW_3D':
+            ctx = bpy.context.copy()
+            ctx['area'] = area
+            ctx['region'] = area.regions[-1]
+            bpy.ops.view3d.view_selected(ctx)
+            
             space = area.spaces.active
+            
             if space.type == 'VIEW_3D':
                 space.shading.type = 'MATERIAL'
-                bpy.ops.view3d.view_all()
 
 def apply_dna_textures_to_object(filepath, geo_object):
     base_mat = get_material_from_object(geo_object)
@@ -157,7 +173,7 @@ def update_trait_selected(self, context):
     base_mats = [get_material('Head'), get_material('Suit')]
     
     if Path(os.path.join(abs_trait_dir, '_' + Scene.clonex_gender)).is_dir():
-        filepath = os.path.join(abs_trait_dir, '_' + Scene.clonex_gender + '\_blender')
+        filepath = os.path.join(abs_trait_dir, '_' + Scene.clonex_gender, '_blender')
     
         for file in os.listdir(filepath):
             if file.endswith('.blend'):
@@ -185,7 +201,7 @@ def update_trait_selected(self, context):
         
         if self.trait_dir.startswith('Characters'):
             geo_object = get_object('CloneX_' + Scene.clonex_gender.capitalize() + '_SuitGeo')
-            filepath = os.path.join(abs_trait_dir, '_textures\suit_' + Scene.clonex_gender)
+            filepath = os.path.join(abs_trait_dir, '_textures', 'suit_' + Scene.clonex_gender)
         elif self.trait_dir.startswith('DNA'):
             geo_object = get_object('CloneX_HeadGeo')
             filepath = os.path.join(abs_trait_dir, '_texture')
@@ -267,7 +283,7 @@ class BaseCloneSelectOperator(Operator, ImportHelper):
             item.trait_selected = False
         
         Scene.clonex_loaded = True
-        set_material_preview_shading()
+        setup_viewport(context)
         
         return {'FINISHED'}
 

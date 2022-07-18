@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Easy CloneX",
     "author": "OxBGoat",
-    "version": (0, 1, 3),
+    "version": (0, 1, 4),
     "blender": (3, 2, 0),
     "description": "An Add-on that makes it easy to assemble a Clone from CloneX 3D files",
     "category": "CloneX"
