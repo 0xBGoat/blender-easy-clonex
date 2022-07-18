@@ -199,12 +199,16 @@ def update_trait_selected(self, context):
         filepath = ''  
         geo_object = None
         
+        # These head and suit objects can have varying names, so do some fuzzy matching
         if self.trait_dir.startswith('Characters'):
-            geo_object = get_object('CloneX_' + Scene.clonex_gender.capitalize() + '_SuitGeo')
+            objects = get_objects_including('SuitGeo')
             filepath = os.path.join(abs_trait_dir, '_textures', 'suit_' + Scene.clonex_gender)
         elif self.trait_dir.startswith('DNA'):
-            geo_object = get_object('CloneX_HeadGeo')
+            objects = get_objects_including('HeadGeo')
             filepath = os.path.join(abs_trait_dir, '_texture')
+
+        if len(objects) > 0:
+            geo_object = objects[0]
         
         geo_mat = get_material_from_object(geo_object)
 
