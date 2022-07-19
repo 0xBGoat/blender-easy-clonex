@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Easy CloneX",
     "author": "OxBGoat",
-    "version": (0, 1, 7),
+    "version": (0, 2.0),
     "blender": (3, 2, 0),
     "description": "An Add-on that makes it easy to assemble a Clone from CloneX 3D files",
     "category": "CloneX"
@@ -23,7 +23,6 @@ def register():
 
     Scene.clonex_trait_collection = CollectionProperty(name='Trait Collection', description='', type=eca.CloneXTraitPropertyGroup)
     Scene.clonex_home_dir = StringProperty(name='CloneX Home Dir', description='', default='', subtype='NONE', maxlen=0)
-    #Scene.clonex_gender = StringProperty(name='CloneX Gender', description='', default='male', subtype='NONE', maxlen=0)
     Scene.clonex_gender = EnumProperty(name='CloneX Gender', description='', items=[('male', 'Male', ''),('female', 'Female', '')])
     Scene.clonex_loaded = BoolProperty(name='CloneX Loaded', description='', default=False)
     

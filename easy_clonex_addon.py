@@ -17,12 +17,13 @@ BSDF_NODE_INDEX_DICT = {
 
 def setup_viewport(context):
     # Move the camera into a better starting position
-    mat_loc = Matrix.Translation((0, -5, 2))
+    mat_loc = Matrix.Translation((0, -10, 2))
     mat_sca = Matrix.Scale(1, 4, (1, 1, 1))
-    mat_rot = Matrix.Rotation(radians(77), 4, 'X')
+    mat_rot = Matrix.Rotation(radians(83), 4, 'X')
     mat_comb = mat_loc @ mat_rot @ mat_sca
 
     cam = bpy.data.objects['Camera']
+    cam.data.lens = 112
     cam.matrix_world = mat_comb
 
     for area in context.screen.areas:
@@ -256,19 +257,15 @@ class BaseCloneSelectOperator(Operator):
         base_clone_filepath = None
 
         for path in Path(self.directory).iterdir():
-            print(path)
             # Check to see if the directory already exists before unzipping
             if path.is_dir():
                 if path.name.startswith('Characters-character'):
                     base_clone_path = path.resolve()
             else:
-                if path.suffix == '.zip':
+                if path.suffix == '.zip' and not Path(os.path.join(self.directory, path.stem)).is_dir():
                     # Unzip the file into a directoy with a matching name
                     with zipfile.ZipFile(path) as zip_ref:
-                        print(zip_ref)
-                        print(self.directory)
-                        print(path.name)
-                        zip_ref.extractall(os.path.join(self.directory, path.name))
+                        zip_ref.extractall(os.path.join(self.directory, path.stem))
             
                     # Grab a reference to the base clone path
                     if path.stem.startswith('Characters-character'):
@@ -276,40 +273,36 @@ class BaseCloneSelectOperator(Operator):
 
         if base_clone_path is not None:
             base_clone_path = os.path.join(base_clone_path, '_' + get_scene().clonex_gender, '_blender')
-            print(base_clone_path)
             base_clone_file = os.listdir(base_clone_path)[0]
-            print(base_clone_file)
             base_clone_filepath = os.path.join(base_clone_path, base_clone_file)
-            print(base_clone_filepath)
 
             with bpy.data.libraries.load(base_clone_filepath) as (data_from, data_to):
                 data_to.objects = data_from.objects
                 
-            if not collection_exists("Character"):
-                create_collection("Character")
-                link_objects_to_collection(data_to.objects, get_collection("Character"))    
-                
-            get_scene().clonex_trait_collection.clear()
+        if not collection_exists("Character"):
+            create_collection("Character")
+            link_objects_to_collection(data_to.objects, get_collection("Character"))    
             
-            for i in range(len([f for f in os.listdir(self.directory) if os.path.isdir(os.path.join(self.directory, f))])):
-                folder_name = [f for f in os.listdir(self.directory) if os.path.isdir(os.path.join(self.directory, f))][i]
-                
-                # Don't create a checkbox for the base clone file
-                if 'Characters-character' in folder_name or not folder_name.endswith('Combined'):
-                    continue
+        get_scene().clonex_trait_collection.clear()
+        
+        for i in range(len([f for f in os.listdir(self.directory) if os.path.isdir(os.path.join(self.directory, f))])):
+            folder_name = [f for f in os.listdir(self.directory) if os.path.isdir(os.path.join(self.directory, f))][i]
+            
+            # Don't create a checkbox for the base clone file
+            if 'Characters-character' in folder_name or not folder_name.endswith('Combined'):
+                continue
 
-                trait_display_name = format_trait_display_name(folder_name)
-                        
-                item = get_scene().clonex_trait_collection.add()
+            trait_display_name = format_trait_display_name(folder_name)
+                    
+            item = get_scene().clonex_trait_collection.add()
+            item.trait_dir = os.path.join(self.directory, folder_name)
+            item.trait_name = trait_display_name
             
-                item.trait_dir = os.path.join(self.directory, folder_name)
-                item.trait_name = trait_display_name
-                
-                # Only equip one of the bottoms initially
-                if 'Bottoms - Tech' in trait_display_name or 'Bottoms - Leggings' in trait_display_name:
-                    item.trait_selected = False
-                else: 
-                    item.trait_selected = True
+            # Only equip one of the bottoms initially
+            if 'Bottoms - Tech' in trait_display_name or 'Bottoms - Leggings' in trait_display_name:
+                item.trait_selected = False
+            else: 
+                item.trait_selected = True
         
         get_scene().clonex_loaded = True
         setup_viewport(context)
