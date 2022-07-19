@@ -30,7 +30,9 @@ def setup_viewport(context):
             ctx = bpy.context.copy()
             ctx['area'] = area
             ctx['region'] = area.regions[-1]
-            bpy.ops.view3d.view_selected(ctx)
+            
+            select_all_meshes()
+            bpy.ops.view3d.view_selected()
             
             space = area.spaces.active
             
@@ -169,6 +171,7 @@ def update_trait_selected(self, context):
     # Store the base_mats for comparison checks
     base_mats = [get_material('Head'), get_material('Suit')]
     
+    print(self.trait_dir)
     if Path(os.path.join(self.trait_dir, '_' + get_scene().clonex_gender)).is_dir():
         filepath = os.path.join(self.trait_dir, '_' + get_scene().clonex_gender, '_blender')
     
@@ -250,44 +253,64 @@ class BaseCloneSelectOperator(Operator):
             delete_object("Cube")
         
         # Load the base clone objects
-        base_clone_filepath = ''
+        base_clone_path = None
+        base_clone_filepath = None
 
-        for path in [p for p in Path(self.directory).rglob('*') if p.suffix == '.zip']:
+        for path in Path(self.directory).iterdir():
+            print(path)
             # Check to see if the directory already exists before unzipping
-            if not os.path.isdir(os.path.join(self.directory, path.stem)):
-                # Unzip each zip file into a directoy with a matching name
-                with zipfile.ZipFile(path.resolve()) as zip_ref:
-                    zip_ref.extractall(os.path.join(self.directory, path.stem))
+            if path.is_dir():
+                if path.name.startswith('Characters-character'):
+                    base_clone_path = path.resolve()
+            else:
+                if path.suffix == '.zip':
+                    # Unzip the file into a directoy with a matching name
+                    with zipfile.ZipFile(path) as zip_ref:
+                        print(zip_ref)
+                        print(self.directory)
+                        print(path.name)
+                        zip_ref.extractall(os.path.join(self.directory, path.name))
             
-            # Grab a reference to the base clone path
-            if path.stem.startswith('Characters-character'):
-                base_clone_path = os.path.join(self.directory, path.stem, '_female', '_blender')
-                base_clone_file = os.listdir(base_clone_path)[0]
-                base_clone_filepath = os.path.join(base_clone_path, base_clone_file)
+                    # Grab a reference to the base clone path
+                    if path.stem.startswith('Characters-character'):
+                        base_clone_path = os.path.join(self.directory, path.stem)
 
-                Scene.clonex_gender = 'male' if base_clone_file.startswith('m') else 'female'
+        if base_clone_path is not None:
+            base_clone_path = os.path.join(base_clone_path, '_' + get_scene().clonex_gender, '_blender')
+            print(base_clone_path)
+            base_clone_file = os.listdir(base_clone_path)[0]
+            print(base_clone_file)
+            base_clone_filepath = os.path.join(base_clone_path, base_clone_file)
+            print(base_clone_filepath)
 
-        with bpy.data.libraries.load(base_clone_filepath) as (data_from, data_to):
-            data_to.objects = data_from.objects
+            with bpy.data.libraries.load(base_clone_filepath) as (data_from, data_to):
+                data_to.objects = data_from.objects
+                
+            if not collection_exists("Character"):
+                create_collection("Character")
+                link_objects_to_collection(data_to.objects, get_collection("Character"))    
+                
+            get_scene().clonex_trait_collection.clear()
             
-        if not collection_exists("Character"):
-            create_collection("Character")
-            link_objects_to_collection(data_to.objects, get_collection("Character"))    
+            for i in range(len([f for f in os.listdir(self.directory) if os.path.isdir(os.path.join(self.directory, f))])):
+                folder_name = [f for f in os.listdir(self.directory) if os.path.isdir(os.path.join(self.directory, f))][i]
+                
+                # Don't create a checkbox for the base clone file
+                if 'Characters-character' in folder_name or not folder_name.endswith('Combined'):
+                    continue
+
+                trait_display_name = format_trait_display_name(folder_name)
+                        
+                item = get_scene().clonex_trait_collection.add()
             
-        get_scene().clonex_trait_collection.clear()
-        
-        for i in range(len([f for f in os.listdir(self.directory) if os.path.isdir(os.path.join(self.directory, f))])):
-            folder_name = [f for f in os.listdir(self.directory) if os.path.isdir(os.path.join(self.directory, f))][i]
-            
-            # Don't create a checkbox for the base clone file
-            if 'Characters-character' in folder_name or not folder_name.endswith('Combined'):
-                continue
-                    
-            item = get_scene().clonex_trait_collection.add()
-        
-            item.trait_dir = os.path.join(self.directory, folder_name)
-            item.trait_name = format_trait_display_name(folder_name)
-            item.trait_selected = False
+                item.trait_dir = os.path.join(self.directory, folder_name)
+                item.trait_name = trait_display_name
+                
+                # Only equip one of the bottoms initially
+                if 'Bottoms - Tech' in trait_display_name or 'Bottoms - Leggings' in trait_display_name:
+                    item.trait_selected = False
+                else: 
+                    item.trait_selected = True
         
         get_scene().clonex_loaded = True
         setup_viewport(context)
@@ -317,13 +340,21 @@ class EasyCloneXPanel(Panel):
         
     def draw(self, context):
         layout = self.layout
+
+        # Row for gender selection
+        row_gender_heading = layout.row()
+        row_gender_heading.label(text="Select Clone Gender")
+
+        row_gender_buttons = layout.row()
+        row_gender_buttons.scale_y = 1.5
+        row_gender_buttons.prop(get_scene(), 'clonex_gender', expand=True)
        
         # Row for Clone select button
         row_button = layout.row()
         row_button.scale_y = 1.5
         row_button.enabled = True
         row_button.active = True
-        row_button.operator(BaseCloneSelectOperator.bl_idname, text='Open Files', depress=True, emboss=True, icon='FILE_BLEND')
+        row_button.operator(BaseCloneSelectOperator.bl_idname, text='Open CloneX 3D Files', depress=True, emboss=True, icon='FILE_FOLDER')
         
         if get_scene().clonex_loaded == True:
             layout.separator(factor=1.0)
@@ -340,7 +371,7 @@ class EasyCloneXPanel(Panel):
             col_traits.use_property_decorate = False
             col_traits.scale_x = 1.0
             col_traits.scale_y = 1.0
-            col_traits.alignment = 'Expand'.upper() # Why is this call to upper necessary?
+            col_traits.alignment = 'Expand'.upper()
             
             for i in range(len(get_scene().clonex_trait_collection)):
                 col_traits.prop(

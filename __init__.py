@@ -10,7 +10,7 @@ bl_info = {
 import bpy
 
 from bpy.types import Scene
-from bpy.props import (StringProperty, BoolProperty, CollectionProperty)
+from bpy.props import (StringProperty, BoolProperty, CollectionProperty, EnumProperty)
 from bpy.utils import register_class, unregister_class
 from . import easy_clonex_addon as eca
 
@@ -23,7 +23,8 @@ def register():
 
     Scene.clonex_trait_collection = CollectionProperty(name='Trait Collection', description='', type=eca.CloneXTraitPropertyGroup)
     Scene.clonex_home_dir = StringProperty(name='CloneX Home Dir', description='', default='', subtype='NONE', maxlen=0)
-    Scene.clonex_gender = StringProperty(name='CloneX Gender', description='', default='male', subtype='NONE', maxlen=0)
+    #Scene.clonex_gender = StringProperty(name='CloneX Gender', description='', default='male', subtype='NONE', maxlen=0)
+    Scene.clonex_gender = EnumProperty(name='CloneX Gender', description='', items=[('male', 'Male', ''),('female', 'Female', '')])
     Scene.clonex_loaded = BoolProperty(name='CloneX Loaded', description='', default=False)
     
     try: 
