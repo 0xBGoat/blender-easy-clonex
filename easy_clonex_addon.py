@@ -171,7 +171,6 @@ def update_trait_selected(self, context):
     # Store the base_mats for comparison checks
     base_mats = [get_material('Head'), get_material('Suit')]
     
-    print(self.trait_dir)
     if Path(os.path.join(self.trait_dir, '_' + get_scene().clonex_gender)).is_dir():
         filepath = os.path.join(self.trait_dir, '_' + get_scene().clonex_gender, '_blender')
     
@@ -239,7 +238,7 @@ def format_trait_display_name(folder_name):
     return trait_name 
     
 class BaseCloneSelectOperator(Operator):
-    """Use the file browser to select your base clone .blend file"""
+    """Use the file browser to select the folder containing your 3D files"""
     
     bl_idname = "clone_select.button"
     bl_label = "Select Location"
