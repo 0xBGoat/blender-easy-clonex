@@ -12,7 +12,7 @@ Easy CloneX is a Blender Add-on to simplify working with the 3D assets provided 
 ## Functionality
 **Assembly**  
 
-Easy CloneX adds a new panel to the 3D View in Blender, which you can access by clicking on the small left arrow in the upper-right corner of that view. This panel allows you to load your base clone file and then check the boxes next to the traits/wearables/DNA textures you'd like to apply. If you change your mind, you can uncheck the boxes and those objects will be hidden from the viewport and rendering.
+Easy CloneX adds a new panel to the 3D View in Blender, which you can access by clicking on the small left arrow in the upper-right corner of that view. This panel allows you to load your fully assembled clone into Blender with DNA textures already applied. The panel also provides checkboxes that allow you to easily equip and unequip wearables and traits.
 
 **Armatures/Rigging** 
 
