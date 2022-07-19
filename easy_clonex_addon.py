@@ -1,9 +1,8 @@
-import bpy, os
+import bpy, os, zipfile
 import bpy.utils.previews
 from pathlib import Path
-from bpy_extras.io_utils import ImportHelper
 from bpy.types import Scene, Panel, PropertyGroup, Operator
-from bpy.props import StringProperty
+from bpy.props import StringProperty, BoolProperty
 from math import radians
 from mathutils import Matrix
 from . easybpy import *
@@ -156,10 +155,10 @@ def load_clonex_trait_files_into_collection(trait_collection, filepath):
             
             armature_mod = (get_modifier(obj, 'Armature') 
                 if get_modifier(obj, 'Armature') 
-                else get_modifier(obj, 'Genesis8_1' + Scene.clonex_gender.capitalize()))
+                else get_modifier(obj, 'Genesis8_1' + get_scene().clonex_gender.capitalize()))
             
             if armature_mod is not None:
-                armature_mod.object = get_object('Genesis8_1' + Scene.clonex_gender.capitalize())
+                armature_mod.object = get_object('Genesis8_1' + get_scene().clonex_gender.capitalize())
         
     # Clean up unused objects          
     for obj in objects:
@@ -167,13 +166,11 @@ def load_clonex_trait_files_into_collection(trait_collection, filepath):
             delete_object(obj)   
 
 def update_trait_selected(self, context):
-    abs_trait_dir = os.path.join(Scene.clonex_home_dir, self.trait_dir)
-    
     # Store the base_mats for comparison checks
     base_mats = [get_material('Head'), get_material('Suit')]
     
-    if Path(os.path.join(abs_trait_dir, '_' + Scene.clonex_gender)).is_dir():
-        filepath = os.path.join(abs_trait_dir, '_' + Scene.clonex_gender, '_blender')
+    if Path(os.path.join(self.trait_dir, '_' + get_scene().clonex_gender)).is_dir():
+        filepath = os.path.join(self.trait_dir, '_' + get_scene().clonex_gender, '_blender')
     
         for file in os.listdir(filepath):
             if file.endswith('.blend'):
@@ -201,12 +198,12 @@ def update_trait_selected(self, context):
         geo_object = None
         
         # These head and suit objects can have varying names, so do some fuzzy matching
-        if self.trait_dir.startswith('Characters'):
+        if Path(self.trait_dir).name.startswith('Characters'):
             geo_objects = get_objects_including('SuitGeo')
-            filepath = os.path.join(abs_trait_dir, '_textures', 'suit_' + Scene.clonex_gender)
-        elif self.trait_dir.startswith('DNA'):
+            filepath = os.path.join(self.trait_dir, '_textures', 'suit_' + get_scene().clonex_gender)
+        elif Path(self.trait_dir).name.startswith('DNA'):
             geo_objects = get_objects_including('HeadGeo')
-            filepath = os.path.join(abs_trait_dir, '_texture')
+            filepath = os.path.join(self.trait_dir, '_texture')
 
         if len(geo_objects) > 0:
             geo_object = geo_objects[0]
@@ -238,59 +235,68 @@ def format_trait_display_name(folder_name):
 
     return trait_name 
     
-class BaseCloneSelectOperator(Operator, ImportHelper):
+class BaseCloneSelectOperator(Operator):
     """Use the file browser to select your base clone .blend file"""
     
     bl_idname = "clone_select.button"
-    bl_label = "Open Clone"
+    bl_label = "Select Location"
+
+    directory: StringProperty(name="Directory", options={'HIDDEN'})
+    filter_folder: BoolProperty(default=False, options={'HIDDEN'})
     
-    filter_glob: StringProperty(
-        default='*.blend',
-        options={'HIDDEN'}
-    )
-    
-    def execute(self, context):
-        filepath = Path(self.filepath)
-        filename = filepath.name
-        
-        # Detect gender and store it in a Scene prop 
-        Scene.clonex_gender = 'male' if filename.startswith('m') else 'female'
-        
+    def execute(self, context):                  
         # Delete the default cube if it exists
         if get_object("Cube") is not None:
             delete_object("Cube")
         
         # Load the base clone objects
-        with bpy.data.libraries.load(str(filepath)) as (data_from, data_to):
+        base_clone_filepath = ''
+
+        for path in [p for p in Path(self.directory).rglob('*') if p.suffix == '.zip']:
+            # Check to see if the directory already exists before unzipping
+            if not os.path.isdir(os.path.join(self.directory, path.stem)):
+                # Unzip each zip file into a directoy with a matching name
+                with zipfile.ZipFile(path.resolve()) as zip_ref:
+                    zip_ref.extractall(os.path.join(self.directory, path.stem))
+            
+            # Grab a reference to the base clone path
+            if path.stem.startswith('Characters-character'):
+                base_clone_path = os.path.join(self.directory, path.stem, '_female', '_blender')
+                base_clone_file = os.listdir(base_clone_path)[0]
+                base_clone_filepath = os.path.join(base_clone_path, base_clone_file)
+
+                Scene.clonex_gender = 'male' if base_clone_file.startswith('m') else 'female'
+
+        with bpy.data.libraries.load(base_clone_filepath) as (data_from, data_to):
             data_to.objects = data_from.objects
             
         if not collection_exists("Character"):
             create_collection("Character")
             link_objects_to_collection(data_to.objects, get_collection("Character"))    
             
-        # Find the location of all trait folders relative to base clone file
-        clonex_dir = filepath.parents[3]
-        Scene.clonex_home_dir = clonex_dir
-        
         get_scene().clonex_trait_collection.clear()
         
-        for i in range(len([f for f in os.listdir(clonex_dir) if os.path.isdir(os.path.join(clonex_dir, f))])):
-            folder_name = [f for f in os.listdir(clonex_dir) if os.path.isdir(os.path.join(clonex_dir, f))][i]
+        for i in range(len([f for f in os.listdir(self.directory) if os.path.isdir(os.path.join(self.directory, f))])):
+            folder_name = [f for f in os.listdir(self.directory) if os.path.isdir(os.path.join(self.directory, f))][i]
             
-            # Ignore the current file
+            # Don't create a checkbox for the base clone file
             if 'Characters-character' in folder_name or not folder_name.endswith('Combined'):
                 continue
-                       
+                    
             item = get_scene().clonex_trait_collection.add()
-           
-            item.trait_dir = folder_name
+        
+            item.trait_dir = os.path.join(self.directory, folder_name)
             item.trait_name = format_trait_display_name(folder_name)
             item.trait_selected = False
         
-        Scene.clonex_loaded = True
+        get_scene().clonex_loaded = True
         setup_viewport(context)
         
         return {'FINISHED'}
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
 
 class EasyCloneXPanel(Panel):
     bl_label = 'Easy CloneX'
@@ -311,15 +317,15 @@ class EasyCloneXPanel(Panel):
         
     def draw(self, context):
         layout = self.layout
-        
+       
         # Row for Clone select button
         row_button = layout.row()
         row_button.scale_y = 1.5
         row_button.enabled = True
         row_button.active = True
-        row_button.operator(BaseCloneSelectOperator.bl_idname, text='Open Base Clone', depress=True, emboss=True, icon='FILE_BLEND')
+        row_button.operator(BaseCloneSelectOperator.bl_idname, text='Open Files', depress=True, emboss=True, icon='FILE_BLEND')
         
-        if Scene.clonex_loaded == True:
+        if get_scene().clonex_loaded == True:
             layout.separator(factor=1.0)
             
             row_trait_heading = layout.row()
