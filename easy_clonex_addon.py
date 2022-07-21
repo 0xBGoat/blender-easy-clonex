@@ -1,11 +1,23 @@
-import bpy, os, zipfile
+import bpy, os, zipfile, webbrowser
 import bpy.utils.previews
 from pathlib import Path
-from bpy.types import Scene, Panel, PropertyGroup, Operator
-from bpy.props import StringProperty, BoolProperty
 from math import radians
 from mathutils import Matrix
 from . easybpy import *
+from bpy.types import (
+    Panel, 
+    PropertyGroup, 
+    Operator,
+    UIList
+)
+from bpy.props import (
+    StringProperty, 
+    BoolProperty, 
+    CollectionProperty, 
+    EnumProperty,
+    IntProperty
+)
+
 
 BSDF_NODE_INDEX_DICT = {
     'BSDF_INPUT_BASE_COLOR_INDEX': 0,
@@ -39,6 +51,8 @@ def setup_viewport(context):
             
             if space.type == 'VIEW_3D':
                 space.shading.type = 'MATERIAL'
+    
+    deselect_all_objects()
 
 def apply_dna_textures_to_object(filepath, geo_object):
     base_mat = get_material_from_object(geo_object)
@@ -155,12 +169,14 @@ def load_clonex_trait_files_into_collection(trait_collection, filepath):
             select_only(obj)
             bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
             
+            clonex_gender = get_scene().addon_properties.clonex_gender
+
             armature_mod = (get_modifier(obj, 'Armature') 
                 if get_modifier(obj, 'Armature') 
-                else get_modifier(obj, 'Genesis8_1' + get_scene().clonex_gender.capitalize()))
+                else get_modifier(obj, 'Genesis8_1' + clonex_gender.capitalize()))
             
             if armature_mod is not None:
-                armature_mod.object = get_object('Genesis8_1' + get_scene().clonex_gender.capitalize())
+                armature_mod.object = get_object('Genesis8_1' + clonex_gender.capitalize())
         
     # Clean up unused objects          
     for obj in objects:
@@ -170,9 +186,11 @@ def load_clonex_trait_files_into_collection(trait_collection, filepath):
 def update_trait_selected(self, context):
     # Store the base_mats for comparison checks
     base_mats = [get_material('Head'), get_material('Suit')]
+
+    clonex_gender = get_scene().addon_properties.clonex_gender
     
-    if Path(os.path.join(self.trait_dir, '_' + get_scene().clonex_gender)).is_dir():
-        filepath = os.path.join(self.trait_dir, '_' + get_scene().clonex_gender, '_blender')
+    if Path(os.path.join(self.trait_dir, '_' + clonex_gender)).is_dir():
+        filepath = os.path.join(self.trait_dir, '_' + clonex_gender, '_blender')
     
         for file in os.listdir(filepath):
             if file.endswith('.blend'):
@@ -202,7 +220,7 @@ def update_trait_selected(self, context):
         # These head and suit objects can have varying names, so do some fuzzy matching
         if Path(self.trait_dir).name.startswith('Characters'):
             geo_objects = get_objects_including('SuitGeo')
-            filepath = os.path.join(self.trait_dir, '_textures', 'suit_' + get_scene().clonex_gender)
+            filepath = os.path.join(self.trait_dir, '_textures', 'suit_' + get_scene().addon_properties.clonex_gender)
         elif Path(self.trait_dir).name.startswith('DNA'):
             geo_objects = get_objects_including('HeadGeo')
             filepath = os.path.join(self.trait_dir, '_texture')
@@ -237,16 +255,18 @@ def format_trait_display_name(folder_name):
 
     return trait_name 
     
-class BaseCloneSelectOperator(Operator):
+class EC_OT_CloneSelectOperator(Operator):
     """Use the file browser to select the folder containing your 3D files"""
     
-    bl_idname = "clone_select.button"
+    bl_idname = "ec.clone_select_operator"
     bl_label = "Select Location"
 
     directory: StringProperty(name="Directory", options={'HIDDEN'})
     filter_folder: BoolProperty(default=False, options={'HIDDEN'})
     
-    def execute(self, context):                  
+    def execute(self, context): 
+        addon_props = get_scene().addon_properties                 
+        
         # Delete the default cube if it exists
         if get_object("Cube") is not None:
             delete_object("Cube")
@@ -271,7 +291,7 @@ class BaseCloneSelectOperator(Operator):
                         base_clone_path = os.path.join(self.directory, path.stem)
 
         if base_clone_path is not None:
-            base_clone_path = os.path.join(base_clone_path, '_' + get_scene().clonex_gender, '_blender')
+            base_clone_path = os.path.join(base_clone_path, '_' + addon_props.clonex_gender, '_blender')
             base_clone_file = os.listdir(base_clone_path)[0]
             base_clone_filepath = os.path.join(base_clone_path, base_clone_file)
 
@@ -282,7 +302,7 @@ class BaseCloneSelectOperator(Operator):
             create_collection("Character")
             link_objects_to_collection(data_to.objects, get_collection("Character"))    
             
-        get_scene().clonex_trait_collection.clear()
+        addon_props.clonex_trait_collection.clear()
         
         for i in range(len([f for f in os.listdir(self.directory) if os.path.isdir(os.path.join(self.directory, f))])):
             folder_name = [f for f in os.listdir(self.directory) if os.path.isdir(os.path.join(self.directory, f))][i]
@@ -293,7 +313,7 @@ class BaseCloneSelectOperator(Operator):
 
             trait_display_name = format_trait_display_name(folder_name)
                     
-            item = get_scene().clonex_trait_collection.add()
+            item = addon_props.clonex_trait_collection.add()
             item.trait_dir = os.path.join(self.directory, folder_name)
             item.trait_name = trait_display_name
             
@@ -303,7 +323,9 @@ class BaseCloneSelectOperator(Operator):
             else: 
                 item.trait_selected = True
         
-        get_scene().clonex_loaded = True
+        addon_props.clonex_loaded = True
+        addon_props.clonex_home_dir = self.directory
+
         setup_viewport(context)
         
         return {'FINISHED'}
@@ -312,15 +334,77 @@ class BaseCloneSelectOperator(Operator):
         context.window_manager.fileselect_add(self)
         return {'RUNNING_MODAL'}
 
-class EasyCloneXPanel(Panel):
-    bl_label = 'Easy CloneX'
-    bl_idname = 'OBJECT_PT_easy_clonex'
+class EC_OT_ExportOperator(Operator):
+    """Export files in the format specified"""
+    
+    bl_idname = 'ec.export_operator'
+    bl_label = 'Export Files'
+
+    export_type: StringProperty()
+
+    def execute(self, context):
+        addon_props = get_scene().addon_properties
+
+        if addon_props.clonex_home_dir != '':
+            path = os.path.join(get_scene().addon_properties.clonex_home_dir, 'export')
+
+            if not os.path.exists(path):
+                os.mkdir(path)
+
+            if addon_props.clonex_export_mesh_only is True:
+                select_all_meshes()
+            else:
+                select_all_objects()
+
+            if self.export_type == 'fbx':
+                bpy.ops.export_scene.fbx(
+                    filepath=os.path.join(path, 'CloneExportFBX.fbx'), 
+                    axis_forward='-Z', 
+                    axis_up='Y', 
+                    path_mode='COPY', 
+                    embed_textures=True,
+                    use_selection=True
+                )
+            elif self.export_type == 'obj':
+                if addon_props.clonex_export_mesh_only is True:
+                    bpy.ops.export_scene.obj(
+                        filepath=os.path.join(path, 'CloneExportOBJ.obj'), 
+                        axis_forward='-Z', 
+                        axis_up='Y',
+                        use_selection=True
+                    )
+            elif self.export_type == 'glb':
+                bpy.ops.export_scene.gltf(
+                    filepath=os.path.join(path, 'CloneExportGLB.glb'),
+                    use_selection=True
+                )
+            else:
+                print('Unsupported export type!')
+        else:
+            print('Must set a clonex_home_dir before exporting!') 
+
+        return {'FINISHED'}
+
+class EC_OT_MixamoButton(Operator):
+    """Launch Mixamo.com in your web browser"""
+
+    bl_idname = 'ec.mixamo_button'
+    bl_label = 'Launch Mixamo'
+
+    def execute(self, context):
+        webbrowser.open('https://www.mixamo.com')
+
+        return {'FINISHED'}
+
+class EC_BasePanel:
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_context = ''
-    bl_category = 'CloneX'
-    bl_order = 0
-    bl_ui_units_x = 0
+    bl_context = 'objectmode'
+    bl_category = 'CloneX' 
+
+class EC_PT_MainPanel(EC_BasePanel, Panel):
+    bl_label = 'Easy CloneX'
+    bl_idname = 'ec.main_panel'
     
     @classmethod
     def poll(cls, context):
@@ -338,43 +422,96 @@ class EasyCloneXPanel(Panel):
 
         row_gender_buttons = layout.row()
         row_gender_buttons.scale_y = 1.5
-        row_gender_buttons.prop(get_scene(), 'clonex_gender', expand=True)
+        row_gender_buttons.prop(get_scene().addon_properties, 'clonex_gender', expand=True)
        
         # Row for Clone select button
         row_button = layout.row()
         row_button.scale_y = 1.5
         row_button.enabled = True
         row_button.active = True
-        row_button.operator(BaseCloneSelectOperator.bl_idname, text='Open CloneX 3D Files', depress=True, emboss=True, icon='FILE_FOLDER')
+        row_button.operator(
+            EC_OT_CloneSelectOperator.bl_idname, 
+            text='Open CloneX 3D Files', 
+            depress=True, 
+            emboss=True, 
+            icon='FILE_FOLDER'
+        )
+
+class EC_UL_TraitList(UIList):
+    def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
+        self.use_filter_show = False
         
-        if get_scene().clonex_loaded == True:
-            layout.separator(factor=1.0)
-            
-            row_trait_heading = layout.row()
-            row_trait_heading.label(text='Select Traits')
-            
-            # Column for displaying Traits with checkboxes
-            col_traits = layout.box()
-            col_traits.alert = False
-            col_traits.enabled = True
-            col_traits.active = True
-            col_traits.use_property_split = False
-            col_traits.use_property_decorate = False
-            col_traits.scale_x = 1.0
-            col_traits.scale_y = 1.0
-            col_traits.alignment = 'Expand'.upper()
-            
-            for i in range(len(get_scene().clonex_trait_collection)):
-                col_traits.prop(
-                    get_scene().clonex_trait_collection[i], 
-                    'trait_selected', 
-                    text=get_scene().clonex_trait_collection[i].trait_name, 
-                    icon_value=0, 
-                    emboss=True, 
-                    expand=True
-                )
+        checkbox = "CHECKBOX_HLT" if item.trait_selected else "CHECKBOX_DEHLT"
+
+        if self.layout_type in {'DEFAULT', 'COMPACT'}:
+            layout.alignment = 'LEFT'
+            layout.prop(item, 'trait_selected', text=item.trait_name, emboss=False, icon=checkbox)
+        elif self.layout_type == 'GRID':
+            layout.alignment = 'CENTER'
+            layout.label(text='', icon_value=icon)
+
+
+class EC_PT_TraitsPanel(EC_BasePanel, Panel):
+        bl_parent_id = 'ec.main_panel'
+        bl_label = 'Select Traits'
+        bl_idname = 'ec.traits_panel'
+
+        def draw(self, context):
+            addon_props = get_scene().addon_properties
+
+            if addon_props.clonex_loaded == True:
+                layout = self.layout
+                
+                row = layout.row(align=True)
+                row.template_list(
+                    'EC_UL_TraitList', 
+                    '', 
+                    addon_props,
+                    'clonex_trait_collection',
+                    addon_props,
+                    'clonex_trait_collection_index'      
+                )   
+
+class EC_PT_AdvancedPanel(EC_BasePanel, Panel):
+    bl_parent_id = 'ec.main_panel'
+    bl_label = 'Advanced'
+    bl_idname = 'ec.advanced_panel'
+    bl_options = {"DEFAULT_CLOSED"}
+
+    def draw(self, context):
+        layout = self.layout
+        layout.label(text="Export as:")
+
+        export_row_buttons = layout.row()
+        export_row_buttons.scale_y = 1.5
+        export_row_buttons.operator(EC_OT_ExportOperator.bl_idname, text='FBX').export_type = 'fbx'
+        export_row_buttons.operator(EC_OT_ExportOperator.bl_idname, text='OBJ').export_type = 'obj'
+        export_row_buttons.operator(EC_OT_ExportOperator.bl_idname, text='GLB').export_type = 'glb'
+
+        export_row_checkbox = layout.row()
+        export_row_checkbox.prop(
+            get_scene().addon_properties,
+            'clonex_export_mesh_only',
+            text='Mesh only (good for Mixamo)'
+        )
+
+        layout.separator(factor=1.0)
+
+        mixamo_row_button = layout.row()
+        mixamo_row_button.scale_y = 1.5
+        mixamo_row_button.operator(EC_OT_MixamoButton.bl_idname, text='Open Mixamo.com', icon='URL')
+        
+
         
 class CloneXTraitPropertyGroup(PropertyGroup):
-    trait_dir: bpy.props.StringProperty(name='Trait Directory', description='', default='', subtype='NONE', maxlen=0)
-    trait_name: bpy.props.StringProperty(name='Trait Name', description='', default='', subtype='NONE', maxlen=0)
-    trait_selected: bpy.props.BoolProperty(name='Trait Selected', description='', default=False, update=update_trait_selected) 
+    trait_dir: StringProperty(default='', subtype='NONE', maxlen=0)
+    trait_name: StringProperty(default='', subtype='NONE', maxlen=0)
+    trait_selected: BoolProperty(default=False, update=update_trait_selected) 
+
+class EasyCloneXAddOnPropertyGroup(PropertyGroup):
+    clonex_home_dir: StringProperty(default='', subtype='NONE')
+    clonex_gender: EnumProperty(items=[('male', 'Male', ''),('female', 'Female', '')])
+    clonex_loaded: BoolProperty(default=False)
+    clonex_export_mesh_only: BoolProperty(default=True)
+    clonex_trait_collection: CollectionProperty(type=CloneXTraitPropertyGroup)
+    clonex_trait_collection_index: IntProperty(default=0)
